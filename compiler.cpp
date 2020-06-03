@@ -29,6 +29,13 @@ llvm::Value* binaryOperation(llvm::Value* lhs, llvm::Value* rhs, char op) {
       return TheBuilder.CreateFMul(lhs, rhs, "multmp");
     case '/':
       return TheBuilder.CreateFDiv(lhs, rhs, "divtmp");
+    case '<':
+      llvm::Value* cond = TheBuilder.CreateFCmpULT(lhs, rhs, "lttmp");
+      return TheBuilder.CreateUIToFP(
+        cond,
+        llvm::Type::getFloatTy(TheContext),
+        "booltmp"
+      );
     default:
       std::cerr << "Invalid operator: " << op << std::endl;
       return NULL;
@@ -60,6 +67,39 @@ llvm::Value* assignmentStatement(const std::string& lhs, llvm::Value* rhs) {
   // Store rhs into lhs space.
   return TheBuilder.CreateStore(rhs, TheSymbolTable[lhs]);
 }
+
+
+llvm::Value* variableValue(const std::string& name) {
+  llvm::Value* allocaInst = TheSymbolTable[name];
+  if (!allocaInst) {
+    std::cerr << "Unknown variable: " << name << std::endl;
+    return NULL;
+  }
+  return TheBuilder.CreateLoad(allocaInst, name.c_str());
+}
+
+
+llvm::Value* ifElseStatement() {
+  llvm::Value* cond = binaryOperation(
+    variableValue("b"),
+    numericConstant(8),
+    '<'
+  );
+  if (!cond) {
+    return NULL;
+  }
+
+
+  llvm::Function* currFn =
+    TheBuilder.GetInsertBlock()->getParent();
+  llvm::BasicBlock* ifBlock =
+    llvm::BasicBlock::Create(TheContext, "ifBlock", currFn);
+  llvm::BasicBlock* elseBlock =
+    llvm::BasicBlock::Create(TheContext, "elseBlock");
+  llvm::BasicBlock* continueBlock =
+    llvm::BasicBlock::Create(TheContext, "continueBlock");
+}
+
 
 int main(int argc, char const *argv[]) {
   TheModule = new llvm::Module("LLVM_Demo", TheContext);
@@ -94,6 +134,16 @@ int main(int argc, char const *argv[]) {
   llvm::Value* assignment1 = assignmentStatement(
     "a",
     expr2
+  );
+
+  llvm::Value* expr3 = binaryOperation(
+    variableValue("a"),
+    numericConstant(4),
+    '/'
+  );
+  llvm::Value* assignment2 = assignmentStatement(
+    "b",
+    expr3
   );
 
   TheBuilder.CreateRetVoid();
